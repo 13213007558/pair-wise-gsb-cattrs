@@ -484,6 +484,32 @@ Structuring from tuples can also be made the default for specific classes only b
 >>> converter.register_structure_hook(A, converter.structure_attrs_fromtuple)
 ```
 
+### InitVars
+
+Dataclass [`InitVar`s](https://docs.python.org/3/library/dataclasses.html#dataclasses.InitVar) are supported when structuring.
+They are converted according to their annotations and passed to `__init__`, so `__post_init__` runs exactly once with fully converted arguments.
+InitVars are input-only; they are never unstructured.
+
+```{doctest}
+
+>>> from dataclasses import InitVar, dataclass, field
+
+>>> @dataclass
+... class A:
+...     a: int
+...     ctx: InitVar[int] = 5
+...     derived: int = field(init=False, default=0)
+...
+...     def __post_init__(self, ctx: int):
+...         self.derived = self.a + ctx
+
+>>> cattrs.structure({'a': '1', 'ctx': '2'}, A)
+A(a=1, derived=3)
+
+>>> cattrs.unstructure(_)
+{'a': 1}
+```
+
 
 ### Generics
 

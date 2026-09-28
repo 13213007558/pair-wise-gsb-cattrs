@@ -1,8 +1,8 @@
-"""`gen` tests under PEP 563 (stringified annotations)."""
+"""gen tests under PEP 563 (stringified annotations)."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass, field
 
 from attrs import define
 
@@ -39,6 +39,16 @@ class InnerDataclass:
 @dataclass
 class OuterDataclass:
     inner: InnerDataclass
+
+
+@dataclass
+class DataclassWithInitVar:
+    a: int
+    ctx: InitVar[int] = 5
+    derived: int = field(init=False, default=0)
+
+    def __post_init__(self, ctx: int):
+        self.derived = self.a + ctx
 
 
 def test_roundtrip():
@@ -78,3 +88,23 @@ def test_roundtrip_dc():
     assert converter.structure({"inner": {"a": 1}}, OuterDataclass) == OuterDataclass(
         InnerDataclass(1)
     )
+
+
+def test_initvar_dc():
+    """Stringified InitVar annotations are resolved and unwrapped."""
+    converter = Converter()
+
+    converter.register_structure_hook(
+        DataclassWithInitVar, make_dict_structure_fn(DataclassWithInitVar, converter)
+    )
+
+    inst = converter.structure({"a": "1", "ctx": "2"}, DataclassWithInitVar)
+
+    assert inst == DataclassWithInitVar(1, 2)
+    assert inst.derived == 3
+
+    converter.register_unstructure_hook(
+        DataclassWithInitVar, make_dict_unstructure_fn(DataclassWithInitVar, converter)
+    )
+
+    assert converter.unstructure(inst) == {"a": 1}

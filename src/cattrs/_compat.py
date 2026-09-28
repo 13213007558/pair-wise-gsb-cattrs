@@ -6,7 +6,7 @@ from collections.abc import MutableSequence as AbcMutableSequence
 from collections.abc import MutableSet as AbcMutableSet
 from collections.abc import Sequence as AbcSequence
 from collections.abc import Set as AbcSet
-from dataclasses import MISSING, Field, is_dataclass
+from dataclasses import _FIELD, _FIELD_INITVAR, MISSING, Field, InitVar, is_dataclass
 from dataclasses import fields as dataclass_fields
 from functools import partial
 from inspect import signature as _signature
@@ -123,6 +123,35 @@ def fields(type):
         return dataclass_fields(type)
 
 
+def structure_fields(type) -> tuple:
+    """Like fields(), but includes dataclass InitVars, in order.
+
+    Used on the structuring side, where InitVars are constructor arguments.
+    """
+    try:
+        return type.__attrs_attrs__
+    except AttributeError:
+        if is_dataclass(type):
+            return tuple(
+                f
+                for f in type.__dataclass_fields__.values()
+                if f._field_type in (_FIELD, _FIELD_INITVAR)
+            )
+        return dataclass_fields(type)
+
+
+def is_initvar(type: Any) -> bool:
+    """Whether the type is a dataclasses InitVar."""
+    return type is InitVar or isinstance(type, InitVar)
+
+
+def get_initvar_base(type: Any) -> Any:
+    """Return the inner type of a dataclasses InitVar, unwrapping it."""
+    if isinstance(type, InitVar):
+        return type.type
+    return Any
+
+
 def fields_dict(type) -> dict[str, Union[Attribute, Field]]:
     """Return the fields_dict for attrs and dataclasses."""
     if is_dataclass(type):
@@ -130,13 +159,25 @@ def fields_dict(type) -> dict[str, Union[Attribute, Field]]:
     return attrs_fields_dict(type)
 
 
-def adapted_fields(cl: type) -> list[Attribute]:
+def adapted_fields(cl: type, include_initvars: bool = False) -> list[Attribute]:
     """Return the attrs format of `fields()` for attrs and dataclasses.
 
-    Resolves `attrs` stringified annotations, if present.
+    Resolves attrs stringified annotations, if present.
+
+    :param include_initvars: For dataclasses, also include InitVar fields
+        (in their declaration order), with their types unwrapped. InitVars
+        only exist on the structuring side, so this should not be used for
+        unstructuring.
     """
     if is_dataclass(cl):
-        attrs = dataclass_fields(cl)
+        if include_initvars:
+            attrs = [
+                f
+                for f in cl.__dataclass_fields__.values()
+                if f._field_type in (_FIELD, _FIELD_INITVAR)
+            ]
+        else:
+            attrs = dataclass_fields(cl)
         if any(isinstance(a.type, str) for a in attrs):
             # Do this conditionally in case `get_type_hints` fails, so
             # users can resolve on their own first.
@@ -161,7 +202,11 @@ def adapted_fields(cl: type) -> list[Attribute]:
                 True,
                 attr.init,
                 True,
-                type=type_hints.get(attr.name, attr.type),
+                type=(
+                    get_initvar_base(type)
+                    if is_initvar(type := type_hints.get(attr.name, attr.type))
+                    else type
+                ),
                 alias=attr.name,
                 kw_only=getattr(attr, "kw_only", False),
             )

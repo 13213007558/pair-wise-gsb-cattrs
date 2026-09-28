@@ -813,7 +813,7 @@ def make_dict_structure_fn(
             mapping = generate_mapping(base, mapping)
             break
 
-    attrs = adapted_fields(cl)
+    attrs = adapted_fields(cl, include_initvars=True)
 
     # We keep track of what we're generating to help with recursive
     # class graphs.

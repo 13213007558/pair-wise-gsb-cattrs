@@ -34,6 +34,7 @@ from ._compat import (
     TypeAlias,
     fields,
     get_final_base,
+    get_initvar_base,
     get_newtype_base,
     get_origin,
     has,
@@ -46,6 +47,7 @@ from ._compat import (
     is_generic,
     is_generic_attrs,
     is_hetero_tuple,
+    is_initvar,
     is_literal,
     is_mapping,
     is_mutable_sequence,
@@ -57,6 +59,7 @@ from ._compat import (
     is_typeddict,
     is_union_type,
     signature,
+    structure_fields,
 )
 from .cols import (
     defaultdict_structure_factory,
@@ -753,6 +756,9 @@ class BaseConverter:
     def _structure_attribute(self, a: Attribute | Field, value: Any) -> Any:
         """Handle an individual attrs attribute."""
         type_ = a.type
+        if is_initvar(type_):
+            # A dataclass InitVar; structure using the inner type.
+            type_ = get_initvar_base(type_)
         attrib_converter = getattr(a, "converter", None)
         if self._prefer_attrib_converters and attrib_converter:
             # A attrib converter is defined on this attribute, and
@@ -777,7 +783,7 @@ class BaseConverter:
         # For public use.
 
         conv_obj = {}  # Start with a fresh dict, to ignore extra keys.
-        for a in fields(cl):
+        for a in structure_fields(cl):
             try:
                 val = obj[a.name]
             except KeyError:
