@@ -12,7 +12,7 @@ from .errors import (
 )
 from .gen import override
 from .types import SimpleStructureHook
-from .v import transform_error
+from .v import transform_error, transform_error_safe
 
 __all__ = [
     "AttributeValidationNote",
@@ -39,6 +39,7 @@ __all__ = [
     "structure_attrs_fromdict",
     "structure_attrs_fromtuple",
     "transform_error",
+    "transform_error_safe",
     "unstructure",
 ]
 

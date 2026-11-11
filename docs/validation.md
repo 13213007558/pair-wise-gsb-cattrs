@@ -116,6 +116,49 @@ A useful pattern is wrapping the default, {func}`cattrs.v.format_exception` func
 
 If even more customization is required, {func}`cattrs.transform_error` can be copied over into your codebase and adjusted as needed.
 
+### Safe Error Messages for API Clients
+
+```{versionadded} 25.2.0
+
+```
+
+{func}`cattrs.transform_error` interpolates exception messages for some error kinds, and those messages may contain raw input values (tokens, passwords) or the output of custom `__repr__` implementations.
+When error messages are returned to API clients, use {func}`cattrs.transform_error_safe` instead; it produces the same field paths, but describes each error using {func}`cattrs.v.safe_format_exception`, which:
+
+* never interpolates exception messages or arguments into the output,
+* never calls `repr`/`str` on input values, types or exceptions, so custom `__repr__` implementations of input objects are never invoked,
+* renders unknown exceptions (for example, exceptions raised by custom hooks) as the constant string `unknown error`.
+
+```{doctest} class
+
+>>> from cattrs import transform_error_safe
+
+>>> try:
+...     structure({"a_list": ["a"], "a_dict": {"str": "a"}}, Class)
+... except Exception as exc:
+...     print(transform_error_safe(exc))
+['invalid value for type, expected int @ $.a_list[0]', "invalid value for type, expected int @ $.a_dict['str']"]
+```
+
+The guarantee for unknown errors is exactly this: their message is always the constant `unknown error`, regardless of what the exception contains, and rendering never touches the offending value.
+The original exception is only read, never modified, so it can still be logged server-side with full detail (traceback, notes and causes included).
+
+Callers can layer their own vetted error mappings on top by passing a custom `format_exception` which falls back to {func}`cattrs.v.safe_format_exception`:
+
+```
+>>> from cattrs.v import safe_format_exception
+
+>>> def my_safe_formatter(exc: BaseException, type) -> str:
+...     if isinstance(exc, MyTokenError):
+...         return "invalid token"
+...     return safe_format_exception(exc, type)
+
+>>> try:
+...     structure(..., Class)
+... except Exception as exc:
+...     print(transform_error_safe(exc, format_exception=my_safe_formatter))
+```
+
 ## Non-detailed Validation
 
 Non-detailed validation can be enabled by initializing any of the converters with `detailed_validation=False`.
