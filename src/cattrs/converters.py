@@ -1090,7 +1090,13 @@ class BaseConverter:
                 if detailed_validation is not None
                 else self.detailed_validation
             ),
+            unstructure_fallback_factory=self._unstructure_func._fallback_factory,
+            structure_fallback_factory=self._structure_func._fallback_factory,
         )
+
+        # Keep custom union hooks, but as an independent registry so later
+        # registrations on either converter don't leak into the other.
+        res._union_struct_registry.update(self._union_struct_registry)
 
         self._unstructure_func.copy_to(res._unstructure_func, self._unstruct_copy_skip)
         self._structure_func.copy_to(res._structure_func, self._struct_copy_skip)
@@ -1522,8 +1528,14 @@ class Converter(BaseConverter):
                 if detailed_validation is not None
                 else self.detailed_validation
             ),
+            unstructure_fallback_factory=self._unstructure_func._fallback_factory,
+            structure_fallback_factory=self._structure_func._fallback_factory,
             use_alias=(use_alias if use_alias is not None else self.use_alias),
         )
+
+        # Keep custom union hooks, but as an independent registry so later
+        # registrations on either converter don't leak into the other.
+        res._union_struct_registry.update(self._union_struct_registry)
 
         self._unstructure_func.copy_to(
             res._unstructure_func, skip=self._unstruct_copy_skip
